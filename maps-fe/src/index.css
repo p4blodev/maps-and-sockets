@@ -1,0 +1,17 @@
+.info {
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 20px;
+  color: #fff;
+  left: 20px;
+  padding: 1rem;
+  position: fixed;
+  top: 20px;
+  z-index: 99;
+}
+.map-container {
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
