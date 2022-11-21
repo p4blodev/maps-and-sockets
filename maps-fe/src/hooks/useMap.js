@@ -1,98 +1,96 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import mapboxgl from "mapbox-gl";
 import { v4 } from "uuid";
 import { Subject } from "rxjs";
 
 mapboxgl.accessToken = process.env.REACT_APP_MAPS_API_KEY;
 
-export const useMap = (initailPoint) => {
-  const refContainerMap = useRef();
+export const useMap = (puntoInicial) => {
+  // Referencia al DIV del mapa
+  const mapContainerRef = useRef();
   const setRef = useCallback((node) => {
-    refContainerMap.current = node;
+    mapContainerRef.current = node;
   }, []);
-  const refMap = useRef();
-  const [coords, setCoords] = useState(initailPoint);
+
+  // Referencia los marcadores
   const markers = useRef({});
-  // observables
-  const movementMarket = useRef(new Subject());
+
+  // Observables de Rxjs
+  const makerMovements = useRef(new Subject());
   const newMarker = useRef(new Subject());
 
-  const addMarker = useCallback((event) => {
-    const { lng, lat } = event.lngLat;
-    const marker = new mapboxgl.Marker();
-    marker.id = v4();
-    marker.setLngLat([lng, lat]).addTo(refMap.current).setDraggable(true);
+  // Mapa y coords
+  const mapRef = useRef();
+  const [coords, setCoords] = useState(puntoInicial);
 
+  // función para agregar marcadores
+  const addMarker = useCallback((ev, id) => {
+    const { lng, lat } = ev.lngLat || ev;
+
+    const marker = new mapboxgl.Marker();
+    marker.id = id ?? v4();
+
+    marker.setLngLat([lng, lat]).addTo(mapRef.current).setDraggable(true);
+
+    // Asignamos al objeto de marcadores
     markers.current[marker.id] = marker;
 
-    // TODO: if marker has id not create one
-    newMarker.current.next({
-      id: marker.id,
-      lng,
-      lat,
-    });
-
-    marker.on("dragstart", ({ target }) => {
-      const id = target.id;
-      const { lng, lat } = target.getLngLat();
-
-      movementMarket.current.next({
-        id,
-        lat,
+    if (!id) {
+      newMarker.current.next({
+        id: marker.id,
         lng,
-        movement: "start",
-      });
-    });
-    marker.on("dragend", ({ target }) => {
-      const id = target.id;
-      const { lng, lat } = target.getLngLat();
-
-      movementMarket.current.next({
-        id,
         lat,
-        lng,
-        movement: "end",
       });
+    }
+
+    // escuchar movimientos del marcador
+    marker.on("drag", ({ target }) => {
+      const { id } = target;
+      const { lng, lat } = target.getLngLat();
+      makerMovements.current.next({ id, lng, lat });
     });
+  }, []);
+
+  // Funcion para actualizar la ubicación del marcador
+  const updatePosition = useCallback(({ id, lng, lat }) => {
+    markers.current[id].setLngLat([lng, lat]);
   }, []);
 
   useEffect(() => {
     const map = new mapboxgl.Map({
-      container: refContainerMap.current,
+      container: mapContainerRef.current,
       style: "mapbox://styles/mapbox/streets-v11",
-      center: [initailPoint.lng, initailPoint.lat],
-      zoom: initailPoint.zoom,
+      center: [puntoInicial.lng, puntoInicial.lat],
+      zoom: puntoInicial.zoom,
     });
 
-    refMap.current = map;
-  }, [initailPoint]);
+    mapRef.current = map;
+  }, [puntoInicial]);
 
+  // Cuando se mueve el mapa
   useEffect(() => {
-    if (!refMap.current) return;
-
-    refMap.current.on("move", () => {
-      const { lng, lat } = refMap.current.getCenter();
-
+    mapRef.current?.on("move", () => {
+      const { lng, lat } = mapRef.current.getCenter();
       setCoords({
         lng: lng.toFixed(4),
         lat: lat.toFixed(4),
-        zoom: refMap.current.getZoom().toFixed(2),
+        zoom: mapRef.current.getZoom().toFixed(2),
       });
     });
   }, []);
 
+  // Agregar marcadores cuando hago click
   useEffect(() => {
-    refMap.current?.on("click", (event) => {
-      addMarker(event);
-    });
+    mapRef.current?.on("click", addMarker);
   }, [addMarker]);
 
   return {
-    addMarker,
+    agregarMarcador: addMarker,
+    actualizarPosicion: updatePosition,
     coords,
-    markers,
+     markers,
     newMarker$: newMarker.current,
-    movementMarket$: movementMarket.current,
+    markerMovements$: makerMovements.current,
     setRef,
   };
 };
